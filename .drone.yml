@@ -11,6 +11,7 @@ steps:
 - name: build
   image: rancher/dapper:v0.5.0
   commands:
+  - until docker info; do echo Waiting Docker to become healthy; sleep 2; done;
   - dapper ci
   volumes:
   - name: dockersock
@@ -74,7 +75,7 @@ name: manifest
 
 platform:
   os: linux
-  arch: amd64
+  arch: arm64
 
 steps:
 - name: manifest
