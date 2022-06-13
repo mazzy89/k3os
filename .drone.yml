@@ -1,67 +1,6 @@
 ---
 kind: pipeline
-name: amd64
-
-platform:
-  os: linux
-  arch: amd64
-
-steps:
-- name: build
-  image: rancher/dapper:v0.5.0
-  commands:
-  - dapper ci
-  volumes:
-  - name: docker
-    path: /var/run/docker.sock
-
-- name: github_binary_release
-  image: ibuildthecloud/github-release:v0.0.1
-  settings:
-    api_key:
-      from_secret: github_token
-    prerelease: true
-    checksum:
-    - sha256
-    checksum_file: CHECKSUMsum-amd64.txt
-    checksum_flatten: true
-    files:
-    - "dist/artifacts/*"
-  when:
-    instance:
-    - drone-publish.rancher.io
-    ref:
-    - refs/head/master
-    - refs/tags/*
-    event:
-    - tag
-
-- name: docker-publish
-  image: plugins/docker
-  settings:
-    dockerfile: package/Dockerfile
-    password:
-      from_secret: docker_password
-    repo: "rancher/k3os"
-    tag: "${DRONE_TAG}-amd64"
-    username:
-      from_secret: docker_username
-  when:
-    instance:
-    - drone-publish.rancher.io
-    ref:
-    - refs/head/master
-    - refs/tags/*
-    event:
-    - tag
-
-volumes:
-- name: docker
-  host:
-    path: /var/run/docker.sock
-
----
-kind: pipeline
+type: kubernetes
 name: arm64
 
 platform:
@@ -72,10 +11,11 @@ steps:
 - name: build
   image: rancher/dapper:v0.5.0
   commands:
+  - until docker info; do echo Waiting Docker to become healthy; sleep 2; done;
   - dapper ci
   volumes:
-  - name: docker
-    path: /var/run/docker.sock
+  - name: dockersock
+    path: /var/run
 
 - name: github_binary_release
   image: ibuildthecloud/github-release:v0.0.1
@@ -89,9 +29,11 @@ steps:
     checksum_flatten: true
     files:
     - "dist/artifacts/*"
+  environment:
+    DRONE_REPO_OWNER: mazzy89
   when:
     instance:
-    - drone-publish.rancher.io
+    - drone.hzk8s.k3s.mazzarino.cz
     ref:
     - refs/head/master
     - refs/tags/*
@@ -104,85 +46,30 @@ steps:
     dockerfile: package/Dockerfile
     password:
       from_secret: docker_password
-    repo: "rancher/k3os"
+    repo: "mazzy/k3os"
     tag: "${DRONE_TAG}-arm64"
     username:
       from_secret: docker_username
   when:
     instance:
-    - drone-publish.rancher.io
+    - drone.hzk8s.k3s.mazzarino.cz
     ref:
     - refs/head/master
     - refs/tags/*
     event:
     - tag
 
-volumes:
+services:
 - name: docker
-  host:
-    path: /var/run/docker.sock
-
----
-kind: pipeline
-name: arm
-
-platform:
-  os: linux
-  arch: arm
-
-steps:
-- name: build
-  image: rancher/dapper:v0.5.0
-  commands:
-  - dapper ci
+  image: docker:dind
+  privileged: true
   volumes:
-  - name: docker
-    path: /var/run/docker.sock
-
-- name: github_binary_release
-  image: ibuildthecloud/github-release:v0.0.1
-  settings:
-    api_key:
-      from_secret: github_token
-    prerelease: true
-    checksum:
-    - sha256
-    checksum_file: CHECKSUMsum-arm.txt
-    checksum_flatten: true
-    files:
-    - "dist/artifacts/*"
-  when:
-    instance:
-    - drone-publish.rancher.io
-    ref:
-    - refs/head/master
-    - refs/tags/*
-    event:
-    - tag
-
-- name: docker-publish
-  image: plugins/docker
-  settings:
-    dockerfile: package/Dockerfile
-    password:
-      from_secret: docker_password
-    repo: "rancher/k3os"
-    tag: "${DRONE_TAG}-arm"
-    username:
-      from_secret: docker_username
-  when:
-    instance:
-    - drone-publish.rancher.io
-    ref:
-    - refs/head/master
-    - refs/tags/*
-    event:
-    - tag
+  - name: dockersock
+    path: /var/run
 
 volumes:
-- name: docker
-  host:
-    path: /var/run/docker.sock
+- name: dockersock
+  temp: {}
 
 ---
 kind: pipeline
@@ -190,7 +77,7 @@ name: manifest
 
 platform:
   os: linux
-  arch: amd64
+  arch: arm64
 
 steps:
 - name: manifest
@@ -201,14 +88,12 @@ steps:
     password:
       from_secret: docker_password
     platforms:
-      - linux/amd64
       - linux/arm64
-      - linux/arm
-    target: "rancher/k3os:${DRONE_TAG}"
-    template: "rancher/k3os:${DRONE_TAG}-ARCH"
+    target: "mazzy/k3os:${DRONE_TAG}"
+    template: "mazzy/k3os:${DRONE_TAG}-ARCH"
   when:
     instance:
-    - drone-publish.rancher.io
+    - drone.hzk8s.k3s.mazzarino.cz
     ref:
     - refs/head/master
     - refs/tags/*
@@ -216,6 +101,4 @@ steps:
     - tag
 
 depends_on:
-- amd64
 - arm64
-- arm
