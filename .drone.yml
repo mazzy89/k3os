@@ -73,6 +73,7 @@ volumes:
 
 ---
 kind: pipeline
+type: kubernetes
 name: manifest
 
 platform:
